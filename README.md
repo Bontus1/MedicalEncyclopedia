@@ -9,8 +9,8 @@ navigable tree so you can rapidly browse concise explanations.
 - **Hierarchical navigation** – browse topics grouped by discipline and drill
   down into subtopics like anatomical directions or phases of the cell cycle.
 - **SQLite-backed content** – knowledge entries are stored in a lightweight
-  database that is automatically created and seeded with sample content the
-  first time you launch the app.
+  database that you can import directly from an existing `.db`, `.sqlite`, or
+  `.sqlite3` file.
 - **Powerful search** – filter the tree in real time to pinpoint the concept
   you need.
 - **Polished interface** – a dark, minimal Qt design keeps the focus on the
@@ -31,8 +31,9 @@ navigable tree so you can rapidly browse concise explanations.
    python main.py
    ```
 
-The first launch seeds `medical_encyclopedia.db` with curated sample topics. You
-can inspect or extend the dataset with any SQLite-compatible tool.
+4. Click **Import Database…** in the top toolbar and choose the SQLite database
+   that contains your encyclopedia content. The topics tree will populate once a
+   valid database is loaded.
 
 ## Project Structure
 

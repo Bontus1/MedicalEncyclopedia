@@ -1,7 +1,7 @@
 import html
 import os
 import sqlite3
-from typing import Dict, Optional
+from typing import Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -9,333 +9,46 @@ from PySide6 import QtCore, QtGui, QtWidgets
 class DatabaseManager:
     """Handle SQLite persistence for the encyclopedia."""
 
-    def __init__(self, database_path: str = "medical_encyclopedia.db") -> None:
+    def __init__(self) -> None:
+        self.connection: Optional[sqlite3.Connection] = None
+        self.database_path: Optional[str] = None
+
+    def connect(self, database_path: str) -> None:
+        if not os.path.exists(database_path):
+            raise FileNotFoundError(f"Database not found: {database_path}")
+
+        connection = sqlite3.connect(database_path)
+        connection.row_factory = sqlite3.Row
+
+        try:
+            self._validate_schema(connection)
+        except Exception:
+            connection.close()
+            raise
+
+        self.close()
+        self.connection = connection
         self.database_path = database_path
-        should_seed = not os.path.exists(database_path)
-        self.connection = sqlite3.connect(self.database_path)
-        self.connection.row_factory = sqlite3.Row
-        self._create_schema()
-        if should_seed:
-            self._populate_sample_data()
 
-    def _create_schema(self) -> None:
-        with self.connection:
-            self.connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS topics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    parent_id INTEGER,
-                    FOREIGN KEY(parent_id) REFERENCES topics(id)
-                )
-                """
+    def _validate_schema(self, connection: sqlite3.Connection) -> None:
+        cursor = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='topics'"
+        )
+        if cursor.fetchone() is None:
+            raise ValueError(
+                "The selected database is missing the required 'topics' table."
             )
 
-    def _populate_sample_data(self) -> None:
-        sample_data = {
-            "Terminology": {
-                "description": (
-                    "Core anatomical and clinical vocabulary that defines spatial"
-                    " relationships and common language in healthcare."
-                ),
-                "children": {
-                    "Directions": {
-                        "description": (
-                            "Directional terms describe the location of structures"
-                            " relative to one another."
-                        ),
-                        "children": {
-                            "Anterior (ventral)": {
-                                "description": (
-                                    "Toward the front surface of the body; often used"
-                                    " interchangeably with ventral in human anatomy."
-                                )
-                            },
-                            "Posterior (dorsal)": {
-                                "description": (
-                                    "Toward the back surface of the body, opposite of"
-                                    " anterior."
-                                )
-                            },
-                            "Superior (cranial)": {
-                                "description": (
-                                    "Toward the head or upper part of the body;"
-                                    " indicates a position above another structure."
-                                )
-                            },
-                            "Inferior (caudal)": {
-                                "description": (
-                                    "Toward the feet or lower part of the body;"
-                                    " indicates a position below another structure."
-                                )
-                            },
-                            "Medial": {
-                                "description": (
-                                    "Closer to the median plane of the body or a"
-                                    " structure."
-                                )
-                            },
-                            "Lateral": {
-                                "description": (
-                                    "Farther from the median plane of the body or a"
-                                    " structure."
-                                )
-                            },
-                            "Proximal": {
-                                "description": (
-                                    "Closer to the point of origin or attachment;"
-                                    " frequently used when discussing limbs."
-                                )
-                            },
-                            "Distal": {
-                                "description": (
-                                    "Farther from the point of origin or attachment;"
-                                    " opposite of proximal."
-                                )
-                            },
-                        },
-                    },
-                    "Anatomical Regions": {
-                        "description": (
-                            "Named body regions provide consistent reference"
-                            " points for examinations and procedures."
-                        ),
-                        "children": {
-                            "Ventral Cavity": {
-                                "description": (
-                                    "The anterior body cavity that houses thoracic,"
-                                    " abdominal, and pelvic organs."
-                                )
-                            },
-                            "Dorsal Cavity": {
-                                "description": (
-                                    "Posterior body cavity containing the cranial and"
-                                    " vertebral spaces."
-                                )
-                            },
-                            "Quadrants": {
-                                "description": (
-                                    "Abdominal surface divided into right/left upper"
-                                    " and lower quadrants for assessment."
-                                )
-                            },
-                            "Surface Landmarks": {
-                                "description": (
-                                    "External anatomical markers such as the sternal"
-                                    " angle and iliac crest used for orientation."
-                                )
-                            },
-                        },
-                    },
-                    "Clinical Abbreviations": {
-                        "description": (
-                            "Shortened forms and acronyms commonly encountered in"
-                            " clinical documentation."
-                        ),
-                        "children": {
-                            "PRN": {
-                                "description": (
-                                    "Pro re nata; indicates a medication is given as"
-                                    " needed based on patient symptoms."
-                                )
-                            },
-                            "NPO": {
-                                "description": (
-                                    "Nil per os; instructs that the patient should"
-                                    " refrain from oral intake."
-                                )
-                            },
-                            "Stat": {
-                                "description": (
-                                    "Immediately; denotes urgency in orders and"
-                                    " interventions."
-                                )
-                            },
-                        },
-                    },
-                },
-            },
-            "Cellular Biology": {
-                "description": (
-                    "Foundational processes that govern cell structure, function,"
-                    " and replication."
-                ),
-                "children": {
-                    "Cell Cycle": {
-                        "description": (
-                            "A regulated sequence of growth (G1), DNA synthesis"
-                            " (S), preparation for mitosis (G2), and division"
-                            " (M). Checkpoints ensure fidelity."
-                        ),
-                        "children": {
-                            "G1 Phase": {
-                                "description": (
-                                    "Cell grows, produces organelles, and monitors"
-                                    " the environment before committing to DNA"
-                                    " replication."
-                                )
-                            },
-                            "S Phase": {
-                                "description": (
-                                    "DNA replication occurs, producing identical"
-                                    " sister chromatids for each chromosome."
-                                )
-                            },
-                            "G2 Phase": {
-                                "description": (
-                                    "Cell continues to grow and synthesizes proteins"
-                                    " required for mitosis; DNA is checked for damage."
-                                )
-                            },
-                            "M Phase": {
-                                "description": (
-                                    "Mitosis and cytokinesis separate duplicated"
-                                    " chromosomes and divide the cytoplasm into two"
-                                    " daughter cells."
-                                )
-                            },
-                        },
-                    },
-                    "Organelles": {
-                        "description": (
-                            "Membrane-bound structures with specialized functions"
-                            " essential to cell physiology."
-                        ),
-                        "children": {
-                            "Mitochondria": {
-                                "description": (
-                                    "Powerhouses of the cell generating ATP through"
-                                    " oxidative phosphorylation; contain their own DNA."
-                                )
-                            },
-                            "Endoplasmic Reticulum": {
-                                "description": (
-                                    "Network responsible for protein synthesis (rough"
-                                    " ER) and lipid metabolism (smooth ER)."
-                                )
-                            },
-                            "Golgi Apparatus": {
-                                "description": (
-                                    "Modifies, sorts, and packages proteins and"
-                                    " lipids for secretion or delivery to organelles."
-                                )
-                            },
-                            "Lysosomes": {
-                                "description": (
-                                    "Acidic vesicles containing hydrolytic enzymes"
-                                    " for intracellular digestion and recycling."
-                                )
-                            },
-                        },
-                    },
-                    "Cell Signaling": {
-                        "description": (
-                            "Communication pathways that allow cells to sense and"
-                            " respond to their environment."
-                        ),
-                        "children": {
-                            "Autocrine": {
-                                "description": (
-                                    "Signals released and received by the same cell,"
-                                    " often regulating growth."
-                                )
-                            },
-                            "Paracrine": {
-                                "description": (
-                                    "Signals travel short distances to nearby cells"
-                                    " to coordinate local responses."
-                                )
-                            },
-                            "Endocrine": {
-                                "description": (
-                                    "Hormones enter the bloodstream to influence"
-                                    " distant target cells."
-                                )
-                            },
-                            "Second Messengers": {
-                                "description": (
-                                    "Intracellular signaling molecules such as cAMP"
-                                    " and calcium that amplify receptor activation."
-                                )
-                            },
-                        },
-                    },
-                },
-            },
-            "Clinical Skills": {
-                "description": (
-                    "Practical competencies that underpin patient assessment and"
-                    " care delivery."
-                ),
-                "children": {
-                    "History Taking": {
-                        "description": (
-                            "Structured approach to gathering subjective"
-                            " information including chief complaint, history of"
-                            " present illness, and review of systems."
-                        )
-                    },
-                    "Physical Examination": {
-                        "description": (
-                            "Systematic evaluation of the body using inspection,"
-                            " palpation, percussion, and auscultation."
-                        ),
-                        "children": {
-                            "Cardiovascular Exam": {
-                                "description": (
-                                    "Assessment of heart sounds, jugular venous"
-                                    " pressure, and peripheral pulses to evaluate"
-                                    " cardiac function."
-                                )
-                            },
-                            "Respiratory Exam": {
-                                "description": (
-                                    "Evaluation of breathing patterns, lung sounds,"
-                                    " and percussion tones to detect pulmonary"
-                                    " pathology."
-                                )
-                            },
-                            "Neurologic Exam": {
-                                "description": (
-                                    "Series of tests assessing cranial nerves, motor"
-                                    " function, sensation, reflexes, and coordination."
-                                )
-                            },
-                        },
-                    },
-                    "Procedural Basics": {
-                        "description": (
-                            "Essential bedside skills such as venipuncture,"
-                            " arterial line placement, and basic suturing."
-                        )
-                    },
-                },
-            },
-        }
+        # Run a lightweight query to ensure the table is readable.
+        connection.execute("SELECT 1 FROM topics LIMIT 1")
 
-        def insert_topic(name: str, description: str, parent_id: Optional[int]) -> int:
-            cursor = self.connection.execute(
-                "INSERT INTO topics (name, description, parent_id) VALUES (?, ?, ?)",
-                (name, description, parent_id),
-            )
-            return cursor.lastrowid
-
-        def insert_children(nodes: Dict[str, Dict], parent_id: Optional[int] = None) -> None:
-            for title, payload in nodes.items():
-                description = payload.get(
-                    "description",
-                    "No description has been provided for this entry yet.",
-                )
-                topic_id = insert_topic(title, description, parent_id)
-                children = payload.get("children")
-                if children:
-                    insert_children(children, topic_id)
-
-        insert_children(sample_data)
-        self.connection.commit()
+    def is_connected(self) -> bool:
+        return self.connection is not None
 
     def fetch_children(self, parent_id: Optional[int]) -> list[sqlite3.Row]:
+        if not self.connection:
+            return []
+
         if parent_id is None:
             cursor = self.connection.execute(
                 "SELECT * FROM topics WHERE parent_id IS NULL ORDER BY name COLLATE NOCASE"
@@ -348,11 +61,17 @@ class DatabaseManager:
         return cursor.fetchall()
 
     def fetch_topic(self, topic_id: int) -> sqlite3.Row:
+        if not self.connection:
+            raise RuntimeError("No database connection is available.")
+
         cursor = self.connection.execute("SELECT * FROM topics WHERE id = ?", (topic_id,))
         return cursor.fetchone()
 
     def close(self) -> None:
-        self.connection.close()
+        if self.connection is not None:
+            self.connection.close()
+        self.connection = None
+        self.database_path = None
 
 
 class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
@@ -363,6 +82,7 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         self.resize(1000, 650)
         self._setup_palette()
         self._setup_ui()
+        self._update_database_status()
         self._populate_tree()
 
     def _setup_palette(self) -> None:
@@ -389,10 +109,18 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         header_layout.addWidget(title)
         header_layout.addStretch()
 
+        self.database_label = QtWidgets.QLabel()
+        self.database_label.setObjectName("databaseStatusLabel")
+        header_layout.addWidget(self.database_label)
+
+        self.import_button = QtWidgets.QPushButton("Import Database…")
+        self.import_button.clicked.connect(self._import_database)
+        header_layout.addWidget(self.import_button)
+
         self.search_bar = QtWidgets.QLineEdit()
         self.search_bar.setPlaceholderText("Search topics...")
         self.search_bar.textChanged.connect(self._filter_topics)
-        header_layout.addWidget(self.search_bar)
+        header_layout.addWidget(self.search_bar, 1)
 
         layout.addLayout(header_layout)
 
@@ -430,6 +158,9 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         layout.addWidget(splitter)
         self.setCentralWidget(container)
 
+        # Ensure a status bar is available for import feedback.
+        self.statusBar()
+
         self.setStyleSheet(
             """
             QLineEdit {
@@ -457,11 +188,29 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
             QWidget {
                 background-color: #181826;
             }
+            #databaseStatusLabel {
+                color: #9aa0c6;
+                font-size: 12px;
+            }
             """
         )
 
     def _populate_tree(self) -> None:
+        self.search_bar.blockSignals(True)
+        self.search_bar.clear()
+        self.search_bar.blockSignals(False)
         self.topic_tree.clear()
+        if not self.database.is_connected():
+            self.topic_tree.setDisabled(True)
+            self.search_bar.setDisabled(True)
+            self.topic_title.setText("No database loaded")
+            self.topic_body.setHtml(
+                "<p>Import an existing medical encyclopedia database to browse topics.</p>"
+            )
+            return
+
+        self.topic_tree.setEnabled(True)
+        self.search_bar.setEnabled(True)
         root_topics = self.database.fetch_children(None)
         for row in root_topics:
             item = self._create_tree_item(row)
@@ -469,6 +218,11 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         self.topic_tree.expandToDepth(0)
         if self.topic_tree.topLevelItemCount() > 0:
             self.topic_tree.setCurrentItem(self.topic_tree.topLevelItem(0))
+        else:
+            self.topic_title.setText("No topics available")
+            self.topic_body.setHtml(
+                "<p>The imported database does not contain any topics yet.</p>"
+            )
 
     def _create_tree_item(self, topic_row: sqlite3.Row) -> QtWidgets.QTreeWidgetItem:
         item = QtWidgets.QTreeWidgetItem([topic_row["name"]])
@@ -478,6 +232,8 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         return item
 
     def _display_selected_topic(self) -> None:
+        if not self.database.is_connected():
+            return
         items = self.topic_tree.selectedItems()
         if not items:
             return
@@ -500,6 +256,8 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         )
 
     def _filter_topics(self, text: str) -> None:
+        if not self.database.is_connected():
+            return
         query = text.strip().lower()
         for index in range(self.topic_tree.topLevelItemCount()):
             item = self.topic_tree.topLevelItem(index)
@@ -525,6 +283,51 @@ class MedicalEncyclopediaWindow(QtWidgets.QMainWindow):
         if query and match:
             item.setExpanded(True)
         return should_show
+
+    def _import_database(self) -> None:
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select Encyclopedia Database",
+            str(QtCore.QDir.homePath()),
+            "SQLite Databases (*.db *.sqlite *.sqlite3);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        try:
+            self.database.connect(file_path)
+        except FileNotFoundError:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Database Not Found",
+                "The selected file could not be located.",
+            )
+            return
+        except ValueError as error:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Invalid Database",
+                str(error),
+            )
+            return
+        except sqlite3.Error as error:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Database Error",
+                f"Unable to open the selected database.\n\n{error}",
+            )
+            return
+
+        self.statusBar().showMessage(f"Loaded database: {file_path}", 5000)
+        self._update_database_status()
+        self._populate_tree()
+
+    def _update_database_status(self) -> None:
+        if self.database.is_connected() and self.database.database_path:
+            name = os.path.basename(self.database.database_path)
+            self.database_label.setText(f"Loaded: {name}")
+        else:
+            self.database_label.setText("No database loaded")
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # noqa: N802
         self.database.close()
